@@ -1,5 +1,5 @@
-import 'package:gizmo_cli/gizmo_cli.dart' as gizmo_cli;
+import 'package:gizmo_cli/gizmo_engine.dart' as gizmo_cli;
 
-void main(List<String> arguments) {
-  print('Hello world: ${gizmo_cli.calculate()}!');
+Future<void> main(List<String> arguments) async {
+  gizmo_cli.main();
 }

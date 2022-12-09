@@ -64,6 +64,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "3.0.2"
+  ffi:
+    dependency: "direct main"
+    description:
+      name: ffi
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "2.0.1"
   file:
     dependency: transitive
     description:
@@ -163,7 +170,7 @@ packages:
     source: hosted
     version: "2.1.0"
   path:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: path
       url: "https://pub.dartlang.org"
@@ -266,21 +273,21 @@ packages:
       name: test
       url: "https://pub.dartlang.org"
     source: hosted
-    version: "1.22.0"
+    version: "1.22.1"
   test_api:
     dependency: transitive
     description:
       name: test_api
       url: "https://pub.dartlang.org"
     source: hosted
-    version: "0.4.16"
+    version: "0.4.17"
   test_core:
     dependency: transitive
     description:
       name: test_core
       url: "https://pub.dartlang.org"
     source: hosted
-    version: "0.4.20"
+    version: "0.4.21"
   typed_data:
     dependency: transitive
     description:
@@ -316,6 +323,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "1.2.0"
+  win32:
+    dependency: "direct main"
+    description:
+      name: win32
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "3.1.2"
   yaml:
     dependency: transitive
     description:
