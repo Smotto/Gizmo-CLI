@@ -4,79 +4,67 @@ import 'package:win32/win32.dart';
 import 'dart:io';
 import 'dart:io' show Platform, Directory;
 import 'package:path/path.dart' as path;
-import 'package:gizmo_cli/modules.dart';
+import 'package:gizmo_cli/modules_example.dart';
+import 'package:gizmo_cli/wrappers/wrapper_user32.dart' as gizmo_user32;
 
-// calloc stands for clear, initialize all spaces with 0
-// malloc stands for memory, just allocate
-// a handle is a base address of a process or module or anything really.
+void printAllModulesOfProcess(int processID)
+{
+  // Step 1: Grab Window's process
+  final Pointer<Uint32> pointerProcessID = calloc<DWORD>(1);
+  gizmo_user32.GetWindowThreadProcessId(processID, pointerProcessID);
 
-// ** Hungarian Notation ** //
-/*
-  l = long integer (32 bits)
-  a = array
-  c = count
-  ch = char
-  b = boolean || b = byte values returned
-  cb = count of bytes
-  db = double (Systems)
-  i = integer (Systems) or index (Apps)
-  n = integer (Systems) or count (Apps)
-  p = pointer
-  h = handle
-  sz = zero-terminated string
-  fp = floating-point
-  dw = double word (Systems)
-  fn = function name
-  st = clock time structure
-  rg = array || rg = range
-  dec = decimal
-  f = flag || f = float
-  us = unsafe string
-  rw = row
-  str = string
-  arru8 = array of unsigned 8-bit integers
-  psz = pointer to zero-terminated string
-  lpsz = long pointer to a zero-terminated string
-  rgfp = array of floating-point values
-  aul = array of unsigned long (Systems)
-  hwnd = handle to window
-  g_n = global namespace, integer
-  m_n = member of a structure/class, integer
-  m_ || _ = member of a structure/class
-  s_ = static member of a class
-  c_ = static member of a function
- */
+  // Step 2: Open the process with PROCESS_QUERY_INFORMATION and PROCESS_VM_READ access rights
+  final handleToProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pointerProcessID.value);
 
-void main() {
-  final Pointer<Uint32> arrayProcesses = calloc<DWORD>(1024);
-  final Pointer<Uint32> countOfBytesNeeded = calloc<DWORD>();
+  if (handleToProcess != 0) {
+    // Step 3: Grab list of all modules in the process
+    final hMods = calloc<HMODULE>(1024);
+    final cbNeeded = calloc<DWORD>();
 
-  //  aProcesses comes out, cbNeeded comes out
-  if (EnumProcesses(arrayProcesses, sizeOf<DWORD>() * 1024, countOfBytesNeeded) == 0) {
-    print('EnumProcesses failed.');
-    exit(1);
-  }
-  print("arrayProcesses Address of Pointer in Decimal Form                      --->  ${arrayProcesses.address}");
-  print("Pointer Structure with address in Hexadecimal Form                     --->  ${arrayProcesses}");
-  print("Number of bytes                                                        --->  ${countOfBytesNeeded.value}");
-  print("countOfBytesNeeded Pointer Structure with address in Hexadecimal Form  --->  ${countOfBytesNeeded}");
+    // * zeroTerminatedModuleName comes out.
+    if (EnumProcessModules(handleToProcess, hMods, sizeOf<HMODULE>() * 1024, cbNeeded) == 1) {
+      // Step 4: Get the module with the file name from the process.
+      for (int i = 0; i < (cbNeeded.value ~/ sizeOf<HMODULE>()); i++) {
+        final szModName = wsalloc(MAX_PATH);
 
-  // Calculate how many process identifiers were returned.
-  // * To determine how many processes were enumerated, divide the lpcbNeeded value by sizeof(DWORD).
-  // ! We have to do this because arrayProcesses doesn't have a length property (it's not an structure, it's a pointer).
-  final int countProcesses = countOfBytesNeeded.value ~/ sizeOf<DWORD>();
-  final List<String> strings = [];
-  // Print the names of the modules for each process.
-  for (var i = 0; i < countProcesses; i++) {
-    // Each of these numbers is a process ID
-    strings.add(printModules(arrayProcesses[i]));
-  }
+        // Get the full path to the module's file.
+        final hModule = hMods.elementAt(i).value;
 
-  for (var i = 0; i < strings.length; i++)
-    {
-      if (strings[i].isNotEmpty)
-        {
-          print("Squally handle: ${strings[i]}");
+        if (GetModuleFileNameEx(handleToProcess, hModule, szModName, MAX_PATH) != 0) {
+          final hexModuleValue = hModule.toRadixString(16).padLeft(sizeOf<HMODULE>(), '0'.toUpperCase());
+          print('\t${szModName.toDartString()} (0x$hexModuleValue)');
         }
+        free(szModName);
+      }
     }
+    free(hMods);
+    free(cbNeeded);
+  }
+  CloseHandle(handleToProcess);
+}
+
+// Callback for each window found
+int enumWindowsProc(int hWnd, int lParam) {
+  // Don't enumerate windows unless they are marked as WS_VISIBLE
+  if (IsWindowVisible(hWnd) == FALSE) return TRUE;
+
+  final length = GetWindowTextLength(hWnd);
+  if (length == 0) {
+    return TRUE;
+  }
+
+  final buffer = wsalloc(length + 1);
+  GetWindowText(hWnd, buffer, length + 1);
+  print('hWnd $hWnd: ${buffer.toDartString()}');
+  free(buffer);
+
+  return TRUE;
+}
+
+/// List the window handle and text for all top-level desktop windows
+/// in the current session.
+void enumerateWindows() {
+  Pointer<NativeFunction<Uint32 Function(IntPtr, IntPtr)>> wndProc = Pointer.fromFunction<EnumWindowsProc>(enumWindowsProc, 0);
+
+  EnumWindows(wndProc, 0);
 }
