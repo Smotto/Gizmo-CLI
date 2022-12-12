@@ -15,7 +15,8 @@ UsefulProcess grabUsefulProcess(int windowID) {
   print('Handle to Process: ${pointerProcessID.value}');
 
   // Step 2: Open the process with PROCESS_QUERY_INFORMATION and PROCESS_VM_READ access rights
-  final handleToOpenProcessObject = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pointerProcessID.value);
+  final handleToOpenProcessObject =
+      OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pointerProcessID.value);
   print('Handle To Open Process Object: $handleToOpenProcessObject');
 
   if (handleToOpenProcessObject != 0) {
@@ -41,6 +42,7 @@ UsefulProcess grabUsefulProcess(int windowID) {
 
           // Base name
           GetModuleBaseName(handleToOpenProcessObject, hModule, lpBaseName, MAX_PATH);
+
           print('\t lpBaseName: ${lpBaseName.toDartString()}');
           print('');
 
@@ -63,28 +65,9 @@ UsefulProcess grabUsefulProcess(int windowID) {
   return usefulProcess;
 }
 
-// Callback for each window found
-int enumWindowsProc(int hWnd, int lParam) {
-  // Don't enumerate windows unless they are marked as WS_VISIBLE
-  if (IsWindowVisible(hWnd) == FALSE) return TRUE;
-
-  final length = GetWindowTextLength(hWnd);
-  if (length == 0) {
-    return TRUE;
-  }
-
-  final buffer = wsalloc(length + 1);
-  GetWindowText(hWnd, buffer, length + 1);
-  print('hWnd $hWnd: ${buffer.toDartString()}');
-  free(buffer);
-
-  return TRUE;
-}
-
 /// Returns a handle to the function pointer.
 Pointer<NativeFunction<Uint32 Function(IntPtr, IntPtr)>> getHandleToEnumerationFunction(
-  Pointer<NativeFunction<Uint32 Function(IntPtr, IntPtr)>> pointerFunction) {
-
+    Pointer<NativeFunction<Uint32 Function(IntPtr, IntPtr)>> pointerFunction) {
   // Pointer ---> NativeFunction represents type C ---> Function
   Pointer<NativeFunction<Uint32 Function(IntPtr, IntPtr)>> wndProc = pointerFunction;
 

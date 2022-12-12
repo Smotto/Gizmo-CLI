@@ -9,6 +9,9 @@ import 'package:gizmo_cli/wrappers/wrappers.dart' as wrapper;
 import 'package:gizmo_cli/examples/examples.dart' as examples;
 
 List<UsefulWindow> usefulWindows = [];
+UsefulProcess? usefulProcess;
+String? sWindowHandle;
+String? sModuleHandle;
 
 class UsefulWindow
 {
@@ -47,57 +50,74 @@ void bootstrapper()
   // gizmo_engine.getHandleToEnumerationFunction(cFunctionPointerEnumWindowsProc);
   EnumWindows(cFunctionPointerEnumWindowsProc, 0);
 }
+void printUsefulWindows()
+{
+  for (int i = 0; i < usefulWindows.length; i++) {
+    print('Window Name: ${usefulWindows.elementAt(i).name} === hWnd: ${usefulWindows.elementAt(i).hWnd}');
+  }
+}
+
+void initializeWindowHandle()
+{
+  stdout.write("Enter Window Handle number: ");
+  sWindowHandle = stdin.readLineSync();
+  print("Requesting $sWindowHandle modules");
+}
+
+void initializeUsefulProcess()
+{
+  usefulProcess = gizmo_engine.grabUsefulProcess(int.parse(sWindowHandle!));
+}
+
+void initializeModuleHandle()
+{
+  for (int i = 0; i < usefulProcess!.modules.length; i++)
+  {
+    print(usefulProcess!.modules[i].name);
+  }
+  stdout.write("Enter Module Handle number: ");
+  sModuleHandle = stdin.readLineSync();
+}
+
 
 Future<void> main(List<String> arguments) async {
   bootstrapper();
-
-  // call the actual function
-  for (int i = 0; i < usefulWindows.length; i++) {
-    print('${usefulWindows.elementAt(i).name} === ${usefulWindows.elementAt(i).hWnd}');
-  }
-
-  stdout.write("Enter Window Handle number: ");
-  String? sWindowHandle = stdin.readLineSync();
-  print("Requesting $sWindowHandle modules");
-  UsefulProcess usefulProcess = gizmo_engine.grabUsefulProcess(int.parse(sWindowHandle!));
-  for (int i = 0; i < usefulProcess.getModules.length; i++)
-    {
-      print(usefulProcess.getModules[i].name);
-    }
-  stdout.write("Enter Module Handle number: ");
-  String? sModuleHandle = stdin.readLineSync();
-
+  printUsefulWindows();
+  initializeWindowHandle();
+  initializeUsefulProcess();
+  initializeModuleHandle();
   // ! Testing drawing an icon to a window through a window with a module's icon.
-  // examples.ExtractAssociatedIconWExample(int.parse(sModuleHandle!), int.parse(sWindowHandle));
+  // examples.ExtractAssociatedIconWExample(int.parse(sModuleHandle!), int.parse(sWindowHandle!));
+
   // Step 2: Open the process with PROCESS_QUERY_INFORMATION and PROCESS_VM_READ access rights
   Pointer<Uint32> pointerProcessID = calloc<DWORD>(1);
-  pointerProcessID = usefulProcess.pointerID;
+  print(usefulProcess!.pointerID);
+  pointerProcessID = usefulProcess!.pointerID;
   print('Process Handle: ${pointerProcessID.value}');
-  final handleToOpenProcessObject = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pointerProcessID.value);
-  print('Handle To Open Process Object: $handleToOpenProcessObject');
-
-  // Read access example
-  int byteCount = 4;
-  Pointer<Uint32> memoryAddress = calloc<UINT>(1);
-  int addr = 52485880;
-  memoryAddress.value = addr;
-  // 1 byte = 16^2 = ranges (0 - 255)
-  Pointer<Uint8> data = calloc<BYTE>(byteCount);
-  int handleForModule = int.parse(sModuleHandle!);
-
-  int result = ReadProcessMemory(handleToOpenProcessObject, memoryAddress, data, byteCount, nullptr);
-  print("Code: $result");
-  print(GetLastError());
-  for (int i = 0; i < byteCount; i++)
+  final pHandle = OpenProcess(PROCESS_VM_READ, FALSE, pointerProcessID.value);
+  if (pHandle == 0 )
     {
-      print(data.elementAt(i).value);
+      print("ERROR ERROR AHHHHHH");
     }
+  print('Handle To Open Process Object: $pHandle');
+
+  int numberOfBytes = 4;
+  int memoryAddress = 0x0320DEF8;
+  var data = calloc<BYTE>(numberOfBytes);
+  var numberRead = calloc<IntPtr>();
+  int result = ReadProcessMemory(pHandle, Pointer.fromAddress(memoryAddress), data, numberOfBytes, numberRead);
+  print('Result = $result');
+  print('Number of bytes read: ${numberRead.value}');
+  for (int i = 0; i < numberRead.value; i++)
+  {
+    print(data.elementAt(i).value);
+  }
 
   // Release
   free(pointerProcessID);
-  free(memoryAddress);
   free(data);
-  CloseHandle(handleToOpenProcessObject);
+  CloseHandle(pHandle);
+
   // Writing access example
   // List<int> memes = [102, 111, 114, 116, 121, 45, 116, 119, 111, 0];
   // Uint8List byteList = Uint8List.fromList(memes);
