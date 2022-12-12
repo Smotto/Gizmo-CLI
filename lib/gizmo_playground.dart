@@ -6,15 +6,8 @@ import 'dart:io' show Platform, Directory;
 import 'package:path/path.dart' as path;
 import 'package:gizmo_cli/modules_example.dart';
 
-void startConversation()
-{
-  print("Enter a process you want to look at: ");
-  String? name = stdin.readLineSync();
-  print("Looking at ${name}...");
-}
-
 void main() {
-  final Pointer<Uint32> arrayProcesses = calloc<DWORD>(1024);
+    final Pointer<Uint32> arrayProcesses = calloc<DWORD>(1024);
   final Pointer<Uint32> countOfBytesNeeded = calloc<DWORD>();
 
   //  aProcesses comes out, cbNeeded comes out
