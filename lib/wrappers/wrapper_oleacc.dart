@@ -3,6 +3,7 @@ import 'package:ffi/ffi.dart';
 
 final _oleacc = DynamicLibrary.open('oleacc.dll');
 
+/// [GetProcessHandleFromHwnd]
 /// Returns the process of the window handle.
 ///
 /// '''c

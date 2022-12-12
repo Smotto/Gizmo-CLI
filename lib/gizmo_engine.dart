@@ -1,12 +1,12 @@
 import 'dart:ffi';
 import 'package:ffi/ffi.dart';
-import 'package:gizmo_cli/classes/useful_process.dart';
+import 'package:gizmo_cli/classes/active_process.dart';
 import 'package:win32/win32.dart';
 import 'package:gizmo_cli/wrappers/wrapper_user32.dart' as gizmo_user32;
 
 import 'classes/module.dart';
 
-UsefulProcess grabUsefulProcess(int windowID) {
+ActiveProcess grabUsefulProcess(int windowID) {
   List<Module> myList = [];
 
   // Step 1: Grab Window's process
@@ -60,9 +60,75 @@ UsefulProcess grabUsefulProcess(int windowID) {
   }
   CloseHandle(handleToOpenProcessObject);
 
-  UsefulProcess usefulProcess = UsefulProcess(pointerProcessID, myList);
+  ActiveProcess usefulProcess = ActiveProcess(pointerProcessID, myList);
 
   return usefulProcess;
+}
+
+/// Takes in a a process that has a pointer to its handle,
+/// number of bytes to be read, and a memory address to read from.
+int readMemory(
+  ActiveProcess usefulProcess,
+  int numberOfBytes,
+  int memoryAddress,
+) {
+  final openProcessHandle =
+      OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, usefulProcess.pointerID.value);
+  if (openProcessHandle == 0) {
+    print("Error with opening the process.");
+    throw (Exception);
+  }
+
+  var pBuffer = calloc<BYTE>(numberOfBytes);
+  var pNumberOfBytesRead = calloc<IntPtr>();
+  int readResult = ReadProcessMemory(
+      openProcessHandle, Pointer.fromAddress(memoryAddress), pBuffer, numberOfBytes, pNumberOfBytesRead);
+  if (readResult == 0) {
+    print("Error with reading memory from open process handle: $openProcessHandle");
+    throw (Exception);
+  }
+  print("Successfully read ${pNumberOfBytesRead.value} bytes! Returning buffer value...");
+
+  int result = pBuffer.value;
+
+  // Freeing allocated bytes from heap memory.
+  free(pNumberOfBytesRead);
+  free(pBuffer);
+  // Closing handle with access rights.
+  CloseHandle(openProcessHandle);
+
+  return result;
+}
+
+void writeMemory(
+  ActiveProcess usefulProcess,
+  int numberOfBytes,
+  int memoryAddress,
+    int value
+) {
+  final openProcessHandle =
+      OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, usefulProcess.pointerID.value);
+  if (openProcessHandle == 0) {
+    print("Error with opening the process.");
+    throw (Exception);
+  }
+  var pWriteData = calloc<BYTE>(numberOfBytes);
+  pWriteData.value = value;
+  var numberWritten = calloc<IntPtr>();
+  int writeResult =
+      WriteProcessMemory(openProcessHandle, Pointer.fromAddress(memoryAddress), pWriteData, numberOfBytes, numberWritten);
+  if (writeResult == 0) {
+    print("Error with writing memory from open process handle: $openProcessHandle");
+    throw (Exception);
+  }
+  print('Number of bytes written: ${numberWritten.value}');
+  print("Successfully wrote ${numberWritten.value} bytes!");
+
+  // Freeing writes
+  free(pWriteData);
+  free(numberWritten);
+  // Closing handle with access rights.
+  CloseHandle(openProcessHandle);
 }
 
 /// Returns a handle to the function pointer.

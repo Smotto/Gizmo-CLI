@@ -3,6 +3,7 @@ import 'package:ffi/ffi.dart';
 
 final _user32 = DynamicLibrary.open('user32.dll');
 
+/// [GetWindowThreadProcessId]
 /// Sets the pointer for a process id inside a window.
 ///
 /// '''c

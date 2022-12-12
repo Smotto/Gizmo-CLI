@@ -7,7 +7,12 @@ import 'package:path/path.dart' as path;
 import 'package:gizmo_cli/modules_example.dart';
 
 void main() {
-    final Pointer<Uint32> arrayProcesses = calloc<DWORD>(1024);
+
+}
+
+void version1()
+{
+  final Pointer<Uint32> arrayProcesses = calloc<DWORD>(1024);
   final Pointer<Uint32> countOfBytesNeeded = calloc<DWORD>();
 
   //  aProcesses comes out, cbNeeded comes out

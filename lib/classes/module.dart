@@ -1,9 +1,9 @@
 class Module
 {
-  String path;
-  String name;
+  String absolutePath;
+  String baseName;
   String base10Handle;
 
   // Constructor
-  Module(this.path, this.name, this.base10Handle);
+  Module(this.absolutePath, this.baseName, this.base10Handle);
 }

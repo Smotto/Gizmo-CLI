@@ -2,24 +2,17 @@ import 'dart:io';
 import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
-import 'package:gizmo_cli/classes/useful_process.dart';
+import 'package:gizmo_cli/classes/active_process.dart';
+import 'package:gizmo_cli/classes/useful_window.dart';
 import 'package:win32/win32.dart';
 import 'package:gizmo_cli/gizmo_engine.dart' as gizmo_engine;
 import 'package:gizmo_cli/wrappers/wrappers.dart' as wrapper;
 import 'package:gizmo_cli/examples/examples.dart' as examples;
 
 List<UsefulWindow> usefulWindows = [];
-UsefulProcess? usefulProcess;
+ActiveProcess activeProcess = ActiveProcess.defaultConstructor();
 String? sWindowHandle;
 String? sModuleHandle;
-
-class UsefulWindow
-{
-  int hWnd;
-  String name;
-
-  UsefulWindow(this.hWnd, this.name);
-}
 
 // Regular Dart Function that returns an integer.
 // Callback for each window found
@@ -40,8 +33,7 @@ int enumWindowsProc(int hWnd, int lParam) {
   return TRUE;
 }
 
-void bootstrapper()
-{
+void bootstrapper() {
   // EnumWindowsProc returns child window handles.
   // It is an application defined callback.
   var cFunctionPointerEnumWindowsProc = Pointer.fromFunction<EnumWindowsProc>(enumWindowsProc, 0);
@@ -50,101 +42,45 @@ void bootstrapper()
   // gizmo_engine.getHandleToEnumerationFunction(cFunctionPointerEnumWindowsProc);
   EnumWindows(cFunctionPointerEnumWindowsProc, 0);
 }
-void printUsefulWindows()
-{
-  for (int i = 0; i < usefulWindows.length; i++) {
-    print('Window Name: ${usefulWindows.elementAt(i).name} === hWnd: ${usefulWindows.elementAt(i).hWnd}');
-  }
-}
 
-void initializeWindowHandle()
-{
-  stdout.write("Enter Window Handle number: ");
-  sWindowHandle = stdin.readLineSync();
-  print("Requesting $sWindowHandle modules");
+void printUsefulWindows() {
+  for (int i = 0; i < usefulWindows.length; i++) {
+    print(usefulWindows.elementAt(i).name);
+  }
 }
 
 void initializeUsefulProcess()
 {
-  usefulProcess = gizmo_engine.grabUsefulProcess(int.parse(sWindowHandle!));
+  // User input
+  stdout.write("Enter name of window: ");
+  var input = stdin.readLineSync();
+  // Initialize
+  sWindowHandle = (usefulWindows.firstWhere((window) => window.name == input).hWnd).toString();
+  activeProcess = gizmo_engine.grabUsefulProcess(int.parse(sWindowHandle!));
+  sModuleHandle = activeProcess.modules.first.base10Handle;
 }
 
-void initializeModuleHandle()
+int attachToUsefulProcess(ActiveProcess process)
 {
-  for (int i = 0; i < usefulProcess!.modules.length; i++)
-  {
-    print(usefulProcess!.modules[i].name);
-  }
-  stdout.write("Enter Module Handle number: ");
-  sModuleHandle = stdin.readLineSync();
+  return OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, process.pointerID.value);
 }
-
 
 Future<void> main(List<String> arguments) async {
+  // Windows List Gets Initialized
   bootstrapper();
+  // Print it out for the User to go through
   printUsefulWindows();
-  initializeWindowHandle();
+  // Initialize our Active Process
   initializeUsefulProcess();
-  initializeModuleHandle();
-  // ! Testing drawing an icon to a window through a window with a module's icon.
+
+  // ! Testing reading from Squally
+  // int numberOfBytes = 4;
+  // int memoryAddress = 0x0320DEF8;
+  // int bufferValue = gizmo_engine.readMemory(usefulProcess, numberOfBytes, memoryAddress);
+  // print(bufferValue);
+
+  // ! Testing drawing an icon to a window with a module's icon.
+  // Module handle is needed.
   // examples.ExtractAssociatedIconWExample(int.parse(sModuleHandle!), int.parse(sWindowHandle!));
-
-  // Step 2: Open the process with PROCESS_VM_READ access rights
-  Pointer<Uint32> pointerProcessID = calloc<DWORD>(1);
-  print(usefulProcess!.pointerID);
-  pointerProcessID = usefulProcess!.pointerID;
-  print('Process Handle: ${pointerProcessID.value}');
-  final pHandle = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, pointerProcessID.value);
-  if (pHandle == 0 )
-    {
-      print("ERROR ERROR AHHHHHH");
-    }
-  print('Handle To Open Process Object: $pHandle');
-
-  int numberOfBytes = 4;
-  int memoryAddress = 0x0320DEF8;
-  var data = calloc<BYTE>(numberOfBytes);
-  var numberRead = calloc<IntPtr>();
-  int result = ReadProcessMemory(pHandle, Pointer.fromAddress(memoryAddress), data, numberOfBytes, numberRead);
-  print('Result = $result');
-  print('Number of bytes read: ${numberRead.value}');
-  for (int i = 0; i < numberRead.value; i++)
-  {
-    print(data.elementAt(i).value);
-  }
-
-  // Writing access example
-  var dataWrite = calloc<BYTE>(numberOfBytes);
-  dataWrite.elementAt(0).value = 0;
-  var numberWritten = calloc<IntPtr>();
-  int writeResult = WriteProcessMemory(pHandle, Pointer.fromAddress(memoryAddress), dataWrite, numberOfBytes, numberWritten);
-  print('Write Result = $writeResult');
-  print('Number of bytes written: ${numberWritten.value}');
-
-  // Write release
-  free(dataWrite);
-  free(numberWritten);
-  // Read release
-  free(pointerProcessID);
-  free(data);
-  // Process release
-  CloseHandle(pHandle);
 }
 
-int getVersionBlockSize(Pointer<Utf16> lpFilename) {
-  int fviSize;
-
-  // dwDummy isn't used; it's a historical vestige.
-  final dwDummy = calloc<DWORD>();
-
-  try {
-    fviSize = GetFileVersionInfoSize(lpFilename, dwDummy);
-    if (fviSize == 0) {
-      throw Exception('GetFileVersionInfoSize failed.');
-    }
-
-    return fviSize;
-  } finally {
-    free(dwDummy);
-  }
-}
