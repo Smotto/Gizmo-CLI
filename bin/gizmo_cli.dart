@@ -89,12 +89,12 @@ Future<void> main(List<String> arguments) async {
   // ! Testing drawing an icon to a window through a window with a module's icon.
   // examples.ExtractAssociatedIconWExample(int.parse(sModuleHandle!), int.parse(sWindowHandle!));
 
-  // Step 2: Open the process with PROCESS_QUERY_INFORMATION and PROCESS_VM_READ access rights
+  // Step 2: Open the process with PROCESS_VM_READ access rights
   Pointer<Uint32> pointerProcessID = calloc<DWORD>(1);
   print(usefulProcess!.pointerID);
   pointerProcessID = usefulProcess!.pointerID;
   print('Process Handle: ${pointerProcessID.value}');
-  final pHandle = OpenProcess(PROCESS_VM_READ, FALSE, pointerProcessID.value);
+  final pHandle = OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, pointerProcessID.value);
   if (pHandle == 0 )
     {
       print("ERROR ERROR AHHHHHH");
@@ -113,14 +113,22 @@ Future<void> main(List<String> arguments) async {
     print(data.elementAt(i).value);
   }
 
-  // Release
+  // Writing access example
+  var dataWrite = calloc<BYTE>(numberOfBytes);
+  dataWrite.elementAt(0).value = 0;
+  var numberWritten = calloc<IntPtr>();
+  int writeResult = WriteProcessMemory(pHandle, Pointer.fromAddress(memoryAddress), dataWrite, numberOfBytes, numberWritten);
+  print('Write Result = $writeResult');
+  print('Number of bytes written: ${numberWritten.value}');
+
+  // Write release
+  free(dataWrite);
+  free(numberWritten);
+  // Read release
   free(pointerProcessID);
   free(data);
+  // Process release
   CloseHandle(pHandle);
-
-  // Writing access example
-  // List<int> memes = [102, 111, 114, 116, 121, 45, 116, 119, 111, 0];
-  // Uint8List byteList = Uint8List.fromList(memes);
 }
 
 int getVersionBlockSize(Pointer<Utf16> lpFilename) {
