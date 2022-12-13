@@ -2,8 +2,8 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'dart:io';
 import 'package:win32/win32.dart';
-import 'package:gizmo_cli/gizmo_engine.dart' as gizmo_engine;
-import 'package:gizmo_cli/wrappers/wrappers.dart' as wrapper;
+import 'package:gizmo_cli/engine/gizmo_engine.dart' as gizmo_engine;
+import 'package:gizmo_cli/engine/wrappers/wrappers.dart' as wrapper;
 
 void ExtractAssociatedIconExWExample(int hInst, int hWnd)
 {
@@ -46,6 +46,8 @@ void ExtractAssociatedIconWExample(int hInst, int hWnd)
   print(pIconInfo.ref.hbmMask);
   print(pIconInfo.ref.xHotspot);
   print(pIconInfo.ref.yHotspot);
+  free(pointerToName);
+  free(pIconInfo);
   int hDC = GetDC(hWnd);
   while (true)
   {
@@ -67,6 +69,8 @@ void extractIconAExample(int hInst, int hWnd)
   print(pIconInfo.ref.hbmMask);
   print(pIconInfo.ref.xHotspot);
   print(pIconInfo.ref.yHotspot);
+  free(pointerToName8);
+  free(pIconInfo);
   int hDC = GetDC(hWnd);
 
   while (true)
@@ -76,23 +80,34 @@ void extractIconAExample(int hInst, int hWnd)
 }
 
 /* This works. */
-void extractIconWExample(int hInst, int hWnd)
+void extractIconWExample(int hInst, int hWnd, String absolutePath)
 {
-  String name = "F:/SteamLibrary/steamapps/common/Squally/Squally.exe";
-  Pointer<Utf16> pointerToName16 = name.toNativeUtf16();
-  int iconHandle = wrapper.ExtractIconW(hInst, pointerToName16, 0);
-  print(iconHandle);
+  String path = absolutePath;
+  int hIcon = wrapper.ExtractIconW(hInst, path.toNativeUtf16(), 0);
+  print(hIcon);
   Pointer<ICONINFO> pIconInfo = calloc<ICONINFO>();
-  GetIconInfo(iconHandle, pIconInfo);
+  GetIconInfo(hIcon, pIconInfo);
   print(pIconInfo.ref.fIcon);
   print(pIconInfo.ref.hbmColor);
   print(pIconInfo.ref.hbmMask);
   print(pIconInfo.ref.xHotspot);
   print(pIconInfo.ref.yHotspot);
+
+  //TODO: Concert IconInfo into a Uint8List
+
+  final bitmapInfo = calloc<BITMAPINFO>();
+  bitmapInfo.ref.bmiHeader.biSize = sizeOf<BITMAPINFO>();
+  bitmapInfo.ref.bmiHeader.biWidth = 16;
+  bitmapInfo.ref.bmiHeader.biHeight = 16;
+  bitmapInfo.ref.bmiHeader.biPlanes = 1;
+  bitmapInfo.ref.bmiHeader.biBitCount = 32;
+  bitmapInfo.ref.bmiHeader.biCompression = BI_RGB;
+
+  free(pIconInfo);
   int hDC = GetDC(hWnd);
 
   while (true)
   {
-    DrawIcon(hDC, 500, 500, iconHandle);
+    DrawIcon(hDC, 500, 500, hIcon);
   }
 }

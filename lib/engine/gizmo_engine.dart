@@ -2,16 +2,16 @@ import 'dart:ffi';
 import 'package:ffi/ffi.dart';
 import 'package:gizmo_cli/classes/active_process.dart';
 import 'package:win32/win32.dart';
-import 'package:gizmo_cli/wrappers/wrapper_user32.dart' as gizmo_user32;
+import 'package:gizmo_cli/engine/wrappers/wrappers.dart' as wrapper;
 
-import 'classes/module.dart';
+import '../classes/module.dart';
 
 ActiveProcess grabUsefulProcess(int windowID) {
   List<Module> myList = [];
 
   // Step 1: Grab Window's process
   final Pointer<Uint32> pointerProcessID = calloc<DWORD>(1);
-  gizmo_user32.GetWindowThreadProcessId(windowID, pointerProcessID);
+  wrapper.GetWindowThreadProcessId(windowID, pointerProcessID);
   print('Handle to Process: ${pointerProcessID.value}');
 
   // Step 2: Open the process with PROCESS_QUERY_INFORMATION and PROCESS_VM_READ access rights
@@ -32,6 +32,7 @@ ActiveProcess grabUsefulProcess(int windowID) {
         // Get the full path to the module's file.
         final hModule = hMods.elementAt(i).value;
         if (GetModuleFileNameEx(handleToOpenProcessObject, hModule, szModName, MAX_PATH) != 0) {
+          print(hModule);
           final hexModuleValue = hModule.toRadixString(16).padLeft(sizeOf<HMODULE>(), '0'.toUpperCase());
           final decimalModuleValue = hModule.toRadixString(10).padLeft(sizeOf<HMODULE>(), '0'.toUpperCase());
           print('\t hModule name: ${szModName.toDartString()}');
@@ -46,7 +47,7 @@ ActiveProcess grabUsefulProcess(int windowID) {
           print('\t lpBaseName: ${lpBaseName.toDartString()}');
           print('');
 
-          Module module = Module(szModName.toDartString(), lpBaseName.toDartString(), decimalModuleValue);
+          Module module = Module(szModName.toDartString(), lpBaseName.toDartString(), decimalModuleValue, '0x$hexModuleValue');
           myList.add(module);
 
           // Free allocated memory.

@@ -4,9 +4,10 @@ import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import 'package:gizmo_cli/classes/active_process.dart';
 import 'package:gizmo_cli/classes/useful_window.dart';
+import 'package:gizmo_cli/engine/structs.g.dart';
 import 'package:win32/win32.dart';
-import 'package:gizmo_cli/gizmo_engine.dart' as gizmo_engine;
-import 'package:gizmo_cli/wrappers/wrappers.dart' as wrapper;
+import 'package:gizmo_cli/engine/gizmo_engine.dart' as gizmo_engine;
+import 'package:gizmo_cli/engine/wrappers/wrappers.dart' as wrapper;
 import 'package:gizmo_cli/examples/examples.dart' as examples;
 
 List<UsefulWindow> usefulWindows = [];
@@ -49,8 +50,7 @@ void printUsefulWindows() {
   }
 }
 
-void initializeUsefulProcess()
-{
+void initializeActiveProcess() {
   // User input
   stdout.write("Enter name of window: ");
   var input = stdin.readLineSync();
@@ -60,9 +60,9 @@ void initializeUsefulProcess()
   sModuleHandle = activeProcess.modules.first.base10Handle;
 }
 
-int attachToUsefulProcess(ActiveProcess process)
-{
-  return OpenProcess(PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE, process.pointerID.value);
+int grabOpenProcessHandle(ActiveProcess process) {
+  return OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE,
+      process.pointerID.value);
 }
 
 Future<void> main(List<String> arguments) async {
@@ -71,7 +71,33 @@ Future<void> main(List<String> arguments) async {
   // Print it out for the User to go through
   printUsefulWindows();
   // Initialize our Active Process
-  initializeUsefulProcess();
+  initializeActiveProcess();
+  // Open a process with access rights
+  int openProcessHandle = grabOpenProcessHandle(activeProcess);
+
+  //! Test drawing module icon to window
+  // examples.extractIconWExample(int.parse(activeProcess.modules.first.base10Handle), int.parse(sWindowHandle!),
+  //     activeProcess.modules.first.absolutePath);
+  // CreateDIBitmap();
+
+  // Getting System Page Size Info
+  final systemInfo = calloc<SYSTEM_INFO>();
+  GetSystemInfo(systemInfo);
+  print('System Page Size: ${systemInfo.ref.dwPageSize}');
+  Pointer<Uint32> pAddress = calloc<Uint32>();
+  pAddress.value = activeProcess.pointerID.value;
+  int dwLength = systemInfo.ref.dwPageSize;
+  final lpBuffer = calloc<MEMORY_BASIC_INFORMATION>();
+  free(systemInfo);
+  int actualNumberOfBytesInBuffer = wrapper.VirtualQueryEx(openProcessHandle, pAddress, lpBuffer, dwLength);
+  print("Number of Bytes Read: $actualNumberOfBytesInBuffer");
+
+  //! TODO: Getting negative region sizes. Fix.
+  for (int i = 0; i < actualNumberOfBytesInBuffer + 100; i++)
+  {
+    print('$i: ${lpBuffer.elementAt(i).ref.RegionSize}');
+  }
+  CloseHandle(openProcessHandle);
 
   // ! Testing reading from Squally
   // int numberOfBytes = 4;
@@ -83,4 +109,3 @@ Future<void> main(List<String> arguments) async {
   // Module handle is needed.
   // examples.ExtractAssociatedIconWExample(int.parse(sModuleHandle!), int.parse(sWindowHandle!));
 }
-
