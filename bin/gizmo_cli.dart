@@ -104,7 +104,8 @@ Future<void> main(List<String> arguments) async {
   int begin = 0x0;
 
   /// Going from beginning of memory to kernel memory
-  ScanEx("pattern", "mask", begin, kernelMemory, openProcessHandle);
+  int scanReturn = ScanEx("Health", "mask", begin, kernelMemory, openProcessHandle);
+  print(scanReturn);
   // show_modules(openProcessHandle);
   // examples.virtualQueryExample();
 
@@ -128,7 +129,8 @@ int ScanEx(String pattern, String mask, int beginning, int kernelMemorySize,
 
   int count = 0;
 
-  // Needs to be a pointer from address instead of creating your own, since that pointer is already in the correct location.
+  // Needs to be a pointer from address instead of creating your own,
+  // since that pointer is already in the correct location.
   for (int current = beginning;
       current < beginning + kernelMemorySize;
       current += memoryBasicInformation.ref.RegionSize) {
@@ -165,8 +167,7 @@ int ScanEx(String pattern, String mask, int beginning, int kernelMemorySize,
           memoryBasicInformation.ref.RegionSize,
           oldProtect.value,
           oldProtect);
-      int internalAddress =
-          Scan(pattern, mask, buffer, pNumberOfBytesRead);
+      int internalAddress = Scan(pattern, mask, buffer, pNumberOfBytesRead);
       free(pNumberOfBytesRead);
       if (internalAddress != 0) {
         // calculate from internal to external
@@ -186,19 +187,25 @@ int ScanEx(String pattern, String mask, int beginning, int kernelMemorySize,
 // Comparing pattern against buffer
 int Scan(String pattern, String mask, Pointer<BYTE> buffer,
     Pointer<IntPtr> bytesRead) {
-  List<int> patternList = utf8.encode(pattern);
-  Uint8List listFromBuffer = buffer.asTypedList(bytesRead.value);
-  List<int> temporaryList = [];
-  for (int i = 0; i < bytesRead.value; i++)
-    {
-      if (temporaryList.length % 16 == 0)
-        {
-          print(utf8.decoder.convert(temporaryList));
-          temporaryList.clear();
-        }
-      temporaryList.add(listFromBuffer[i]);
-    }
+  print('Bytes Builder');
+  final bytesBuilder = BytesBuilder();
+  print('');
+  for (int i = 0; i < bytesRead.value; i++) {
+    if (i != 0 && bytesBuilder.length == 8) {
+      if (utf8
+          .decode(bytesBuilder.toBytes(), allowMalformed: true)
+          .contains(pattern)) {
 
+        return buffer.elementAt(i).address;
+        print("you found Health!");
+      }
+      bytesBuilder.clear();
+    }
+    bytesBuilder.addByte(buffer.elementAt(i).value);
+  }
+  // print(bytesBuilder.toBytes());
+  // print(utf8.decode(bytesBuilder.toBytes(), allowMalformed: true));
+  bytesBuilder.clear();
   return 0;
 }
 
