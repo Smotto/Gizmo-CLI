@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ffi';
 import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import 'package:gizmo_cli/classes/active_process.dart';
 import 'package:gizmo_cli/classes/useful_window.dart';
+import 'package:gizmo_cli/engine/constants.dart';
 import 'package:gizmo_cli/engine/structs.g.dart';
 import 'package:win32/win32.dart';
 import 'package:gizmo_cli/engine/gizmo_engine.dart' as gizmo_engine;
@@ -37,7 +39,8 @@ int enumWindowsProc(int hWnd, int lParam) {
 void bootstrapper() {
   // EnumWindowsProc returns child window handles.
   // It is an application defined callback.
-  var cFunctionPointerEnumWindowsProc = Pointer.fromFunction<EnumWindowsProc>(enumWindowsProc, 0);
+  var cFunctionPointerEnumWindowsProc =
+      Pointer.fromFunction<EnumWindowsProc>(enumWindowsProc, 0);
   // Returns a handle to the c function
   // Pointer<NativeFunction<Uint32 Function(IntPtr, IntPtr)>> nativeFunctionPointer =
   // gizmo_engine.getHandleToEnumerationFunction(cFunctionPointerEnumWindowsProc);
@@ -52,16 +55,24 @@ void printUsefulWindows() {
 
 void initializeActiveProcess() {
   // User input
-  stdout.write("Enter name of window: ");
-  var input = stdin.readLineSync();
+  // stdout.write("Enter name of window: ");
+  // var input = stdin.readLineSync();
+  var input = "Squally";
   // Initialize
-  sWindowHandle = (usefulWindows.firstWhere((window) => window.name == input).hWnd).toString();
+  sWindowHandle =
+      (usefulWindows.firstWhere((window) => window.name == input).hWnd)
+          .toString();
   activeProcess = gizmo_engine.grabUsefulProcess(int.parse(sWindowHandle!));
   sModuleHandle = activeProcess.modules.first.base10Handle;
 }
 
 int grabOpenProcessHandle(ActiveProcess process) {
-  return OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_READ | PROCESS_VM_WRITE, FALSE,
+  return OpenProcess(
+      PROCESS_QUERY_INFORMATION |
+          PROCESS_VM_OPERATION |
+          PROCESS_VM_READ |
+          PROCESS_VM_WRITE,
+      FALSE,
       process.pointerID.value);
 }
 
@@ -74,38 +85,139 @@ Future<void> main(List<String> arguments) async {
   initializeActiveProcess();
   // Open a process with access rights
   int openProcessHandle = grabOpenProcessHandle(activeProcess);
+  final pProcessMachine = calloc<USHORT>();
+  final pNativeMachine = calloc<USHORT>();
+  int result =
+      IsWow64Process2(openProcessHandle, pProcessMachine, pNativeMachine);
+  var kernelMemory = 0x00000000;
+  if (result == 1) {
+    kernelMemory = 0x80000000;
+  } else {
+    kernelMemory = 0x800000000000;
+  }
 
-  //! Test drawing module icon to window
-  // examples.extractIconWExample(int.parse(activeProcess.modules.first.base10Handle), int.parse(sWindowHandle!),
-  //     activeProcess.modules.first.absolutePath);
-  // CreateDIBitmap();
+  print('Process Machine: ${pProcessMachine.value}');
+  print('Native Machine: ${pNativeMachine.value}');
+  free(pProcessMachine);
+  free(pNativeMachine);
 
+  int begin = 0x0;
+
+  /// Going from beginning of memory to kernel memory
+  ScanEx("pattern", "mask", begin, kernelMemory, openProcessHandle);
+  // show_modules(openProcessHandle);
+  // examples.virtualQueryExample();
+
+  CloseHandle(openProcessHandle);
+}
+
+int ScanEx(String pattern, String mask, int beginning, int kernelMemorySize,
+    int processHandle) {
+  Stopwatch s = new Stopwatch();
+  s.start();
   // Getting System Page Size Info
   final systemInfo = calloc<SYSTEM_INFO>();
   GetSystemInfo(systemInfo);
-  print('System Page Size: ${systemInfo.ref.dwPageSize}');
-  Pointer<Uint32> pAddress = calloc<Uint32>();
-  pAddress.value = activeProcess.pointerID.value;
-  int dwLength = systemInfo.ref.dwPageSize;
-  final lpBuffer = calloc<MEMORY_BASIC_INFORMATION>();
+  int match = 0;
+  Pointer<Uint32> oldProtect = calloc<Uint32>();
+  Pointer<BYTE> buffer = nullptr;
+  Pointer<MEMORY_BASIC_INFORMATION> memoryBasicInformation =
+      calloc<MEMORY_BASIC_INFORMATION>();
+  memoryBasicInformation.ref.RegionSize = systemInfo.ref.dwPageSize;
   free(systemInfo);
-  int actualNumberOfBytesInBuffer = wrapper.VirtualQueryEx(openProcessHandle, pAddress, lpBuffer, dwLength);
-  print("Number of Bytes Read: $actualNumberOfBytesInBuffer");
 
-  //! TODO: Getting negative region sizes. Fix.
-  for (int i = 0; i < actualNumberOfBytesInBuffer + 100; i++)
-  {
-    print('$i: ${lpBuffer.elementAt(i).ref.RegionSize}');
+  int count = 0;
+
+  // Needs to be a pointer from address instead of creating your own, since that pointer is already in the correct location.
+  for (int current = beginning;
+      current < beginning + kernelMemorySize;
+      current += memoryBasicInformation.ref.RegionSize) {
+    print('\nIteration: ${count}');
+    var virtualQueryResult = wrapper.VirtualQueryEx(
+        processHandle,
+        Pointer.fromAddress(current),
+        memoryBasicInformation,
+        sizeOf<MEMORY_BASIC_INFORMATION>());
+    if (virtualQueryResult != sizeOf<MEMORY_BASIC_INFORMATION>()) continue;
+    if (memoryBasicInformation.ref.State != MEM_COMMIT ||
+        memoryBasicInformation.ref.Protect == PAGE_NOACCESS) {
+      print("Skipping NO ACCESS REGION");
+      continue;
+    }
+    print('Ref State: ${memoryBasicInformation.ref.State}');
+    print('MBI Region Size: ${memoryBasicInformation.ref.RegionSize}');
+    if (wrapper.VirtualProtectEx(
+            processHandle,
+            memoryBasicInformation.ref.BaseAddress,
+            memoryBasicInformation.ref.RegionSize,
+            PAGE_EXECUTE_READWRITE,
+            oldProtect) ==
+        1) {
+      int x = memoryBasicInformation.ref.RegionSize;
+      buffer = calloc<BYTE>(x);
+      var pNumberOfBytesRead = calloc<IntPtr>();
+      ReadProcessMemory(processHandle, memoryBasicInformation.ref.BaseAddress,
+          buffer, memoryBasicInformation.ref.RegionSize, pNumberOfBytesRead);
+      print('Number of Bytes Read into Buffer: ${pNumberOfBytesRead.value}');
+      wrapper.VirtualProtectEx(
+          processHandle,
+          memoryBasicInformation.ref.BaseAddress,
+          memoryBasicInformation.ref.RegionSize,
+          oldProtect.value,
+          oldProtect);
+      int internalAddress =
+          Scan(pattern, mask, buffer, pNumberOfBytesRead);
+      free(pNumberOfBytesRead);
+      if (internalAddress != 0) {
+        // calculate from internal to external
+        match = current + (internalAddress - buffer.address);
+        break;
+      }
+      free(buffer);
+    }
+    count++;
   }
-  CloseHandle(openProcessHandle);
+  VirtualFree(memoryBasicInformation.ref.BaseAddress, 0, MEM_RELEASE);
 
+  print('\nTime Elapsed: ${s.elapsedMilliseconds}ms');
+  return match;
+}
+
+// Comparing pattern against buffer
+int Scan(String pattern, String mask, Pointer<BYTE> buffer,
+    Pointer<IntPtr> bytesRead) {
+  List<int> patternList = utf8.encode(pattern);
+  Uint8List listFromBuffer = buffer.asTypedList(bytesRead.value);
+  List<int> temporaryList = [];
+  for (int i = 0; i < bytesRead.value; i++)
+    {
+      if (temporaryList.length % 16 == 0)
+        {
+          print(utf8.decoder.convert(temporaryList));
+          temporaryList.clear();
+        }
+      temporaryList.add(listFromBuffer[i]);
+    }
+
+  return 0;
+}
+
+void testVirtualQuery() {
+  examples.virtualQueryExample();
+}
+
+void testReadMemory(ActiveProcess process) {
   // ! Testing reading from Squally
-  // int numberOfBytes = 4;
-  // int memoryAddress = 0x0320DEF8;
-  // int bufferValue = gizmo_engine.readMemory(usefulProcess, numberOfBytes, memoryAddress);
-  // print(bufferValue);
+  int numberOfBytes = 4;
+  int memoryAddress = 0x0320DEF8;
+  int bufferValue =
+      gizmo_engine.readMemory(process, numberOfBytes, memoryAddress);
+  print(bufferValue);
+}
 
+void testDrawIcon() {
   // ! Testing drawing an icon to a window with a module's icon.
   // Module handle is needed.
   // examples.ExtractAssociatedIconWExample(int.parse(sModuleHandle!), int.parse(sWindowHandle!));
+  // CreateDIBitmap();
 }

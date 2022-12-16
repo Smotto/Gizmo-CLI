@@ -1,9 +1,127 @@
 import 'dart:ffi';
+import 'dart:typed_data';
 import 'package:ffi/ffi.dart';
 import 'dart:io';
 import 'package:win32/win32.dart';
 import 'package:gizmo_cli/engine/gizmo_engine.dart' as gizmo_engine;
 import 'package:gizmo_cli/engine/wrappers/wrappers.dart' as wrapper;
+import '../engine/structs.g.dart';
+
+void main()
+{
+}
+
+void bytesTutorial()
+{
+  // Reference:
+  // https://suragch.medium.com/working-with-bytes-in-dart-6ece83455721
+  final byteList = Uint8List(128);
+  print(byteList);
+  print('');
+  byteList[2] = 255;
+  print(byteList);
+
+  print('Bytes Builder');
+  final bytesBuilder = BytesBuilder();
+  bytesBuilder.addByte(42);
+  print('');
+  bytesBuilder.add([0,5,255]);
+  print(bytesBuilder.toBytes());
+  print('');
+  Uint8List bytes = Uint8List.fromList([1, 0, 0, 128]);
+  ByteBuffer byteBuffer = bytes.buffer;
+  Uint16List sixteenBitList = byteBuffer.asUint16List();
+  print(sixteenBitList);
+
+  print('');
+  Uint8List bytesX = Uint8List.fromList([0, 1, 2, 3]);
+  ByteBuffer byteBufferX = bytesX.buffer;
+  Uint32List thirtytwoBitList = byteBufferX.asUint32List();
+  print(thirtytwoBitList);
+
+  print('');
+  switch(Endian.host){
+    case Endian.big:
+      print("CPU is Big Endian.");
+      break;
+    case Endian.little:
+      print("CPU is Little Endian.");
+      break;
+    default:
+      print("Could not find CPU architecture.");
+      break;
+  }
+  Uint8List byteListY = Uint8List.fromList([0, 1, 2, 3]);
+  ByteData byteDataY = ByteData.sublistView(byteListY);
+  int value = byteDataY.getUint16(0, Endian.big);
+  print(value);
+
+  byteDataY.setInt16(2, 256, Endian.big);
+  print(byteListY);
+
+  print('');
+  String hex = 2020.toRadixString(16).padLeft(4, '0');
+  print(hex); // 07e4
+  String binary = 2020.toRadixString(2);
+  print(binary); // 11111100100
+
+  print('');
+  int myInt = int.parse('07e4', radix: 16);
+  print(myInt); // 2020
+  myInt = int.parse('11111100100', radix: 2);
+  print(myInt); // 2020
+
+  print('');
+  Runes codePoints = 'Hello😎'.runes;
+  print(codePoints); // (72, 101, 108, 108, 111, 128526)
+}
+
+// * This works
+void virtualQueryExample() {
+  Pointer<MEMORY_BASIC_INFORMATION> info = calloc<MEMORY_BASIC_INFORMATION>();
+  Pointer<Uint32> ret = calloc<Uint32>();
+  Pointer<NativeType> vm = VirtualAlloc(nullptr, 8, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+
+  ret.value = wrapper.VirtualQuery(vm, info, sizeOf<MEMORY_BASIC_INFORMATION>());
+  if (ret.value == 0) {
+    print('VirtualQuery failed');
+    print('The error code for the last error was ${GetLastError()}');
+    return;
+  }
+
+  switch (info.ref.AllocationProtect) {
+    case PAGE_EXECUTE_READWRITE:
+      print('Protection type: EXECUTE + READ + WRITE');
+      break;
+    case PAGE_EXECUTE_READ:
+      print('Protection type: EXECUTE + READ');
+      break;
+    case PAGE_READWRITE:
+      print('Protection type: READ + WRITE');
+      break;
+    case PAGE_READONLY:
+      print('Protection type: READ');
+      break;
+    default:
+      print('Not found');
+      break;
+  }
+
+  switch (info.ref.State) {
+    case MEM_COMMIT:
+      print('Region State: Committed');
+      break;
+    case MEM_FREE:
+      print('Region State: Free');
+      break;
+    case MEM_RESERVE:
+      print('Region State: Reserve');
+      break;
+    default:
+      print('Region State: Unknown');
+      break;
+  }
+}
 
 void ExtractAssociatedIconExWExample(int hInst, int hWnd)
 {

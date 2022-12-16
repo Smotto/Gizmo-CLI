@@ -7,12 +7,10 @@ import 'package:ffi/ffi.dart';
 /// {@category Struct}
 class MEMORY_BASIC_INFORMATION extends Struct {
   // PVOID
-  @IntPtr()
-  external int BaseAddress;
+  external Pointer BaseAddress;
 
   // PVOID
-  @IntPtr()
-  external int AllocationBase;
+  external Pointer AllocationBase;
 
   // DWORD
   @Uint32()
